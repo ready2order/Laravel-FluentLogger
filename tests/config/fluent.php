@@ -14,8 +14,6 @@
  * Copyright (c) 2015-2018 Yuuki Takezawa
  */
 
-declare(strict_types=1);
-
 return [
 
     'host' => '127.0.0.1',

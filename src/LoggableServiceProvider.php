@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 /**
@@ -14,13 +13,12 @@ declare(strict_types=1);
  * This software consists of voluntary contributions made by many individuals
  * and is licensed under the MIT license.
  *
- * Copyright (c) 2015-2021 Yuuki Takezawa
+ * Copyright (c) 2015-2018 Yuuki Takezawa
  *
  */
 
 namespace Ytake\LaravelFluent;
 
-use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Log\LogManager;
 use Illuminate\Support\ServiceProvider;
 use Psr\Log\LoggerInterface;
@@ -32,14 +30,12 @@ abstract class LoggableServiceProvider extends ServiceProvider
 {
     /**
      * Register the service provider.
-     *
-     * @throws BindingResolutionException
      */
     public function register(): void
     {
         $this->resolveLogManager();
         /** @var LogManager $log */
-        $log = $this->app->make(LoggerInterface::class);
+        $log = $this->app[LoggerInterface::class];
         $log->extend('fluent', function ($app, array $config) {
             $manager = $app->make(FluentLogManager::class);
 
