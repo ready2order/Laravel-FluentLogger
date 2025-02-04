@@ -1,135 +1,106 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Tests;
-
-use Exception;
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
-use Illuminate\Filesystem\Filesystem;
-use LogicException;
-use Monolog\Level;
-use Monolog\Logger;
-use Monolog\LogRecord;
-use Ytake\LaravelFluent\FluentHandler;
-
-use function unserialize;
-
-final class FluentHandlerTest extends TestCase
+class FluentHandlerTest extends \TestCase
 {
-    private FluentHandler $handler;
-    private Filesystem $filesystem;
+    /** @var \Ytake\LaravelFluent\FluentHandler */
+    protected $handler;
+
+    /** @var \Illuminate\Filesystem\Filesystem */
+    protected $filesystem;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->filesystem = new Filesystem();
-        $this->handler = new FluentHandler(
-            new StubLogger($this->filesystem)
+        $this->filesystem = new \Illuminate\Filesystem\Filesystem;
+        $this->handler = new \Ytake\LaravelFluent\FluentHandler(
+            new stubLogger($this->filesystem)
         );
     }
 
-    public function testGetLoggerInstance(): void
+    public function testGetLoggerInstance()
     {
-        $this->assertInstanceOf(StubLogger::class, $this->handler->getLogger());
+        $this->assertInstanceOf('stubLogger', $this->handler->getLogger());
     }
 
-    /**
-     * @throws FileNotFoundException
-     */
-    public function testLogHandler(): void
+    public function testLogHandler()
     {
-        $log = new LogRecord(
-            datetime:  new \DateTimeImmutable(),
-            channel: 'testing',
-            level: Level::Debug,
-            message: 'our log message',
-            context: ['log context'],
-            extra: []
-        );
-        $this->handler->handle($log);
+        $this->handler->handle([
+            'message'    => 'testing',
+            'level'      => \Monolog\Logger::DEBUG,
+            'extra'      => [],
+            'channel'    => 'testing',
+            'level_name' => 'testing',
+            'context'    => ['testing'],
+        ]);
         $this->assertFileExists(__DIR__ . '/tmp/put.log');
-        $array = unserialize(
-            $this->filesystem->get(__DIR__ . '/tmp/put.log')
-        );
-        $this->assertSame('testing.DEBUG', $array[0]);
+        $log = $this->filesystem->get(__DIR__ . '/tmp/put.log');
+        list($tag, $data) = (unserialize($log));
+        $this->assertSame('testing.testing', $tag);
     }
 
 
-    public function testShouldThrowExceptionForMissingTag(): void
+    public function testShouldThrowExceptionForMissingTag()
     {
-        $this->expectException(LogicException::class);
-        $handler = new FluentHandler(
-            new StubLogger($this->filesystem),
+        $handler = new \Ytake\LaravelFluent\FluentHandler(
+            new stubLogger($this->filesystem),
             '{{channel}}.{{level_name}}.{{testing}}'
         );
-
-        $log = new LogRecord(
-            datetime:  new \DateTimeImmutable(),
-            channel: 'testing',
-            level: Level::Debug,
-            message: 'our log message',
-            context: ['log context'],
-            extra: []
-        );
-        $handler->handle($log);
+        $this->expectException(\LogicException::class);
+        $handler->handle([
+            'message'    => 'testing',
+            'level'      => \Monolog\Logger::DEBUG,
+            'extra'      => [],
+            'channel'    => 'testing',
+            'level_name' => 'testing',
+            'context'    => ['testing'],
+        ]);
     }
 
-    public function testShouldBeOutputInSpecifiedFormat(): void
+    public function testShouldReturnContextExceptionAsString()
     {
-        $handler = new FluentHandler(
-            new StubLogger($this->filesystem),
-            '{{channel}}.{{level_name}}.{{testing}}.{{foo}}'
-        );
-
-        $log = new LogRecord(
-            datetime:  new \DateTimeImmutable(),
-            channel: 'testing',
-            level: Level::Debug,
-            message: 'our log message',
-            context: ['log context'],
-            extra: [
-                'testing' => 'logger',
-                'foo' => 'bar',
-            ]
-        );
-        $handler->handle($log);
-        $this->assertFileExists(__DIR__ . '/tmp/put.log');
-        $array = unserialize(
-            $this->filesystem->get(__DIR__ . '/tmp/put.log')
-        );
-        $this->assertSame('testing.DEBUG.logger.bar', $array[0]);
-    }
-
-    /**
-     * @throws FileNotFoundException
-     */
-    public function testShouldReturnContextExceptionAsString(): void
-    {
-        $log = new LogRecord(
-            datetime:  new \DateTimeImmutable(),
-            channel: 'testing',
-            level: Level::Debug,
-            message: 'our log message',
-            context: [
-                'testing' => 'tests',
-                'exception' => new Exception('something wrong'),
+        $this->handler->handle([
+            'message'    => 'testing',
+            'level'      => \Monolog\Logger::DEBUG,
+            'extra'      => [],
+            'channel'    => 'testing',
+            'level_name' => 'testing',
+            'context'    => [
+                'testing',
+                'exception' => new \Exception('something wrong'),
             ],
-            extra: []
-        );
-        $this->handler->handle($log);
+        ]);
         $this->assertFileExists(__DIR__ . '/tmp/put.log');
-        $array = unserialize(
-            $this->filesystem->get(__DIR__ . '/tmp/put.log')
-        );
+        $log = $this->filesystem->get(__DIR__ . '/tmp/put.log');
+        list($_, $data) = (unserialize($log));
         $this->assertMatchesRegularExpression(
-            '/FluentHandlerTest->testShouldReturnContextExceptionAsString/i',
-            $array[1]['context']
+            "/FluentHandlerTest->testShouldReturnContextExceptionAsString/i",
+            $data['context']
         );
     }
 
     protected function tearDown(): void
     {
         $this->filesystem->delete(__DIR__ . '/tmp/put.log');
+    }
+}
+
+class stubLogger implements \Fluent\Logger\LoggerInterface
+{
+    /** @var \Illuminate\Filesystem\Filesystem */
+    protected $filesystem;
+
+    public function __construct(\Illuminate\Filesystem\Filesystem $filesystem)
+    {
+        $this->filesystem = $filesystem;
+    }
+
+    public function post($tag, array $data)
+    {
+        $this->filesystem->put(__DIR__ . '/tmp/put.log', serialize([$tag, $data]));
+    }
+
+    public function post2(\Fluent\Logger\Entity $entity)
+    {
+        // TODO: Implement post2() method.
     }
 }

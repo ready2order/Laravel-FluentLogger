@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -12,47 +13,48 @@
  * This software consists of voluntary contributions made by many individuals
  * and is licensed under the MIT license.
  *
- * Copyright (c) 2015-2021 Yuuki Takezawa
+ * Copyright (c) 2015-2018 Yuuki Takezawa
+ *
  */
-
-declare(strict_types=1);
 
 namespace Ytake\LaravelFluent;
 
-use Exception;
 use Fluent\Logger\LoggerInterface;
-use LogicException;
 use Monolog\Handler\AbstractProcessingHandler;
-use Monolog\Level;
-use Monolog\LogRecord;
-use Psr\Log\LogLevel;
+use Monolog\Logger;
 
-use function array_key_exists;
+use function str_replace;
 use function preg_match_all;
 use function sprintf;
-use function str_replace;
+use function is_array;
+use function array_key_exists;
 
 /**
- * FluentHandler
+ * Class FluentHandler
  */
 class FluentHandler extends AbstractProcessingHandler
 {
-    protected string $tagFormat = '{{channel}}.{{level_name}}';
+    /** @var LoggerInterface */
+    protected $logger;
+
+    /** @var string */
+    protected $tagFormat = '{{channel}}.{{level_name}}';
 
     /**
-     * @param LoggerInterface              $logger
-     * @param null|string                  $tagFormat
-     * @param int|string|Level|LogLevel::* $level
-     * @param bool                         $bubble
+     * FluentHandler constructor.
      *
-     * @phpstan-param value-of<Level::VALUES>|value-of<Level::NAMES>|Level|LogLevel::* $level
+     * @param LoggerInterface $logger
+     * @param null|string     $tagFormat
+     * @param int             $level
+     * @param bool            $bubble
      */
     public function __construct(
-        protected LoggerInterface $logger,
+        LoggerInterface $logger,
         string $tagFormat = null,
-        Level|int|string $level = Level::Debug,
+        int $level = Logger::DEBUG,
         bool $bubble = true
     ) {
+        $this->logger = $logger;
         if ($tagFormat !== null) {
             $this->tagFormat = $tagFormat;
         }
@@ -60,41 +62,45 @@ class FluentHandler extends AbstractProcessingHandler
     }
 
     /**
-     * @param LogRecord $record
-     * @return void
+     * @param array $record
      */
-    protected function write(LogRecord $record): void
+    protected function write(array $record): void
     {
         $tag = $this->populateTag($record);
         $this->logger->post(
             $tag,
             [
-                'message' => $record->message,
-                // @phpstan-ignore-next-line
-                'context' => $this->getContext($record->context),
-                'extra'   => $record->extra,
+                'message' => $record['message'],
+                'context' => $this->getContext($record['context']),
+                'extra'   => $record['extra'],
             ]
         );
     }
 
-    protected function populateTag(LogRecord $record): string
+    /**
+     * @param array $record
+     *
+     * @return string
+     */
+    protected function populateTag(array $record): string
     {
         return $this->processFormat($record, $this->tagFormat);
     }
 
-    protected function processFormat(LogRecord $record, string $tag): string
+    /**
+     * @param array  $record
+     * @param string $tag
+     *
+     * @return string
+     */
+    protected function processFormat(array $record, string $tag): string
     {
-        if (preg_match_all('/{{(.*?)}}/', $tag, $matches)) {
+        if (preg_match_all('/\{\{(.*?)\}\}/', $tag, $matches)) {
             foreach ($matches[1] as $match) {
-                if (isset($record[$match])) {
-                    $arr = $record;
-                } elseif (isset($record->extra[$match])) {
-                    $arr = $record->extra;
-                } else {
-                    throw new LogicException('No such field in the record');
+                if (!isset($record[$match])) {
+                    throw new \LogicException('No such field in the record');
                 }
-
-                $tag = str_replace(sprintf('{{%s}}', $match), $arr[$match], $tag);
+                $tag = str_replace(sprintf('{{%s}}', $match), $record[$match], $tag);
             }
         }
 
@@ -104,11 +110,11 @@ class FluentHandler extends AbstractProcessingHandler
     /**
      * returns the context
      *
-     * @param array{exception: Exception} $context
+     * @param mixed $context
      *
-     * @return array<string, mixed>|string
+     * @return array|string
      */
-    protected function getContext(array $context): array|string
+    protected function getContext($context)
     {
         if ($this->contextHasException($context)) {
             return $this->getContextExceptionTrace($context);
@@ -120,11 +126,11 @@ class FluentHandler extends AbstractProcessingHandler
     /**
      * Identifies the content type of the given $context
      *
-     * @param  array<string, mixed> $context
+     * @param  mixed $context
      *
      * @return bool
      */
-    protected function contextHasException(array $context): bool
+    protected function contextHasException($context): bool
     {
         return (
             is_array($context)
@@ -136,8 +142,8 @@ class FluentHandler extends AbstractProcessingHandler
     /**
      * Returns the entire exception trace as a string
      *
-     * @param  array{'exception': Exception} $context
-
+     * @param  array $context
+     *
      * @return string
      */
     protected function getContextExceptionTrace(array $context): string
