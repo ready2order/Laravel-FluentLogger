@@ -96,8 +96,9 @@ class FluentLogManager extends LogManager
     {
         $configure = $this->detectConfig();
         $fluentHandler = $this->detectHandler($configure);
+        $logger = $this->detectLogger($configure);
         $handler = new $fluentHandler(
-            new FluentLogger(
+            new $logger(
                 $configure['host'] ?? FluentLogger::DEFAULT_ADDRESS,
                 $configure['port'] ?? FluentLogger::DEFAULT_LISTEN_PORT,
                 $configure['options'] ?? [],
@@ -182,5 +183,16 @@ class FluentLogManager extends LogManager
             return strval($handler);
         }
         return $this->defaultHandler();
+    }
+
+    protected function detectLogger(array $configure): string
+    {
+        $handler = $configure['logger'] ?? null;
+        if (!is_null($handler) && class_exists((string) $handler)) {
+            return strval($handler);
+        }
+
+
+        return FluentLogger::class;
     }
 }
