@@ -65,7 +65,7 @@ class FluentLogManager extends LogManager
      * }
      * @throws BindingResolutionException
      */
-    private function detectConfig(): array
+    protected function detectConfig(): array
     {
         /** @var Repository $repository */
         $repository = $this->app->make('config');
