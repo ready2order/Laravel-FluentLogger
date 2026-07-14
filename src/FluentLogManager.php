@@ -39,6 +39,11 @@ use function strval;
  */
 class FluentLogManager extends LogManager
 {
+    public function __construct($app, private string $configName = 'fluent')
+    {
+        parent::__construct($app);
+    }
+
     /**
      * @param array<string, mixed> $config
      * @return LoggerInterface
@@ -70,7 +75,7 @@ class FluentLogManager extends LogManager
         /** @var Repository $repository */
         $repository = $this->app->make('config');
 
-        assert($repository->has('fluent'));
+        assert($repository->has($this->configName));
         /** @var array{
          *     host: string|null,
          *     port:int|null,
@@ -81,7 +86,7 @@ class FluentLogManager extends LogManager
          *     tagFormat: string|null
          * } $config
          */
-        $config = $repository->get('fluent');
+        $config = $repository->get($this->configName);
         assert(is_array($config));
 
         return $config;
